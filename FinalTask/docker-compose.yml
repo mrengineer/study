@@ -1,0 +1,13 @@
+version: '3.3'
+
+services:
+  bot:
+    build: .
+    container_name: device_bot
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/data
+      - ./main.py:/app/main.py
+    env_file:
+      - .env

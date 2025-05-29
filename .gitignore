@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+.env
+
+# SQLite database
+*.db
+/data/
+
+# Logs and temp
+*.log
+*.tmp
+
+# VSCode / PyCharm
+.vscode/
+.idea/
+
+# Docker
+*.pid
+*.tar
+*.bak
+
+# macOS
+.DS_Store
+
+
+# Environment
+.env.*
