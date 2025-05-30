@@ -1,10 +1,10 @@
-# main.py
 import sqlite3
 import os
 import csv
 import io
 import time
 import threading
+import matplotlib.pyplot as plt
 from flask import Flask, request, jsonify
 import telebot
 from telebot import types
@@ -37,6 +37,11 @@ def init_db():
                         command TEXT,
                         status TEXT,
                         result TEXT
+                    )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS heartbeat (
+                        id TEXT,
+                        timestamp REAL,
+                        temperature REAL
                     )''')
     conn.commit()
     conn.close()
@@ -73,9 +78,17 @@ def upload_data():
 @app.route('/heartbeat', methods=['POST'])
 def heartbeat():
     device_id = request.form.get('id')
+    temperature = request.form.get('temperature', type=float)
+    timestamp = time.time()
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
-    cursor.execute('UPDATE devices SET last_seen = ? WHERE id = ?', (time.time(), device_id))
+    cursor.execute('UPDATE devices SET last_seen = ? WHERE id = ?', (timestamp, device_id))
+    cursor.execute('INSERT INTO heartbeat (id, timestamp, temperature) VALUES (?, ?, ?)', (device_id, timestamp, temperature))
+    # Удаляем старые записи
+    cursor.execute('''DELETE FROM heartbeat 
+                      WHERE rowid NOT IN (
+                          SELECT rowid FROM heartbeat WHERE id=? ORDER BY timestamp DESC LIMIT 1000
+                      ) AND id=?''', (device_id, device_id))
     cursor.execute('SELECT id, command FROM commands WHERE device_id=? AND status="ожидание" ORDER BY id ASC LIMIT 1', (device_id,))
     row = cursor.fetchone()
     if row:
@@ -113,14 +126,13 @@ def handle_help(msg):
     help_text = (
         "Доступные команды:\n"
         "/devices — список устройств и время последней связи\n"
-        "/status ID COUNT — когда устройство было на связи и сколько записей\n"
+        "/status ID — статус устройства, график температуры\n"
         "/del_device ID — удалить устройство и все его данные\n"
         "/send_cmd ID команда — отправить команду устройству\n"
         "/del_cmd ID — удалить команду по ID\n"
         "/help — показать эту справку"
     )
     bot.send_message(msg.chat.id, help_text)
-
 
 @bot.message_handler(commands=['devices'])
 def list_devices(msg):
@@ -133,17 +145,41 @@ def list_devices(msg):
 @bot.message_handler(commands=['status'])
 def device_status(msg):
     try:
-        _, device_id, count = msg.text.split()
-        count = int(count)
+        _, device_id = msg.text.split()
     except:
-        bot.send_message(msg.chat.id, 'Формат: /status device_id количество')
+        bot.send_message(msg.chat.id, 'Формат: /status ID')
         return
     conn = sqlite3.connect(DATABASE_PATH)
     last_seen = conn.execute('SELECT last_seen FROM devices WHERE id=?', (device_id,)).fetchone()
-    rows = conn.execute('SELECT COUNT(*) FROM data WHERE id=?', (device_id,)).fetchone()
+    data_count = conn.execute('SELECT COUNT(*) FROM data WHERE id=?', (device_id,)).fetchone()[0]
+    latest_temp = conn.execute('SELECT temperature FROM heartbeat WHERE id=? ORDER BY timestamp DESC LIMIT 1', (device_id,)).fetchone()
+    heartbeat_rows = conn.execute('SELECT timestamp, temperature FROM heartbeat WHERE id=? ORDER BY timestamp DESC LIMIT 1000', (device_id,)).fetchall()
     conn.close()
-    response = f'Последняя связь: {time.ctime(last_seen[0]) if last_seen else "нет данных"}, записей: {rows[0]}'
+
+    if not last_seen:
+        bot.send_message(msg.chat.id, 'Устройство не найдено')
+        return
+
+    response = f"Последняя связь: {time.ctime(last_seen[0])}\n"
+    response += f"Записей: {data_count}\n"
+    response += f"Температура: {latest_temp[0] if latest_temp else 'нет данных'} °C"
     bot.send_message(msg.chat.id, response)
+
+    if heartbeat_rows:
+        heartbeat_rows.reverse()
+        x = [time.strftime('%H:%M:%S', time.localtime(ts)) for i, (ts, _) in enumerate(heartbeat_rows) if i % 10 == 0]
+        y = [temp for i, (_, temp) in enumerate(heartbeat_rows) if i % 10 == 0]
+        plt.figure(figsize=(10, 4))
+        plt.plot(x, y, marker='o')
+        plt.xticks(rotation=45)
+        plt.title(f"Температура устройства {device_id}")
+        plt.ylabel("°C")
+        plt.tight_layout()
+        img_path = f'/tmp/{device_id}_temp.png'
+        plt.savefig(img_path)
+        plt.close()
+        with open(img_path, 'rb') as f:
+            bot.send_photo(msg.chat.id, f)
 
 @bot.message_handler(commands=['del_device'])
 def delete_device(msg):
@@ -156,6 +192,7 @@ def delete_device(msg):
     conn.execute('DELETE FROM devices WHERE id=?', (device_id,))
     conn.execute('DELETE FROM data WHERE id=?', (device_id,))
     conn.execute('DELETE FROM commands WHERE device_id=?', (device_id,))
+    conn.execute('DELETE FROM heartbeat WHERE id=?', (device_id,))
     conn.commit()
     conn.close()
     bot.send_message(msg.chat.id, f'Устройство {device_id} удалено')
@@ -187,25 +224,22 @@ def del_cmd(msg):
     conn.close()
     bot.send_message(msg.chat.id, 'Команда удалена')
 
-
-#@bot.message_handler(func=lambda message: True)
-#def debug_chat_id(message):
-    #bot.send_message(message.chat.id, f"Ваш chat_id: {message.chat.id}")
+@bot.message_handler(func=lambda message: True)
+def debug_chat_id(message):
+    bot.send_message(message.chat.id, f"Ваш chat_id: {message.chat.id}")
 
 # ============ Start Threads =================
 threading.Thread(target=lambda: bot.polling(none_stop=True)).start()
 
 if __name__ == '__main__':
-
     commands = [
-        telebot.types.BotCommand("start", "Старт бота"),
-        telebot.types.BotCommand("help", "Справка по командам"),
-        telebot.types.BotCommand("devices", "Список устройств"),
-        telebot.types.BotCommand("status", "Статус устройства"),
-        telebot.types.BotCommand("del_device", "Удалить устройство"),
-        telebot.types.BotCommand("send_cmd", "Отправить команду устройству"),
-        telebot.types.BotCommand("del_cmd", "Удалить команду"),
+        types.BotCommand("start", "Старт бота"),
+        types.BotCommand("help", "Справка по командам"),
+        types.BotCommand("devices", "Список устройств"),
+        types.BotCommand("status", "Статус устройства"),
+        types.BotCommand("del_device", "Удалить устройство"),
+        types.BotCommand("send_cmd", "Отправить команду устройству"),
+        types.BotCommand("del_cmd", "Удалить команду"),
     ]
     bot.set_my_commands(commands)
-
     app.run(host='0.0.0.0', port=5000)
