@@ -24,8 +24,9 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS devices (
                         id TEXT PRIMARY KEY,
-                        last_seen TIMESTAMP
-                    )''')
+                        last_seen TIMESTAMP,
+                        ip_list TEXT
+                    )''')  # <-- изменено
     cursor.execute('''CREATE TABLE IF NOT EXISTS data (
                         id TEXT,
                         date TIMESTAMP,
@@ -48,43 +49,42 @@ def init_db():
 
 init_db()
 
+def format_time_ago(ts): 
+    diff = time.time() - ts
+    days = int(diff // 86400)
+    hours = int((diff % 86400) // 3600)
+    minutes = int((diff % 3600) // 60)
+    seconds = int(diff % 60)
+    return f"{days} д, {hours} ч, {minutes} мин, {seconds} сек назад"
+
 # ============ HTTP API =================
 @app.route('/register', methods=['POST'])
 def register():
     device_id = request.form.get('id')
+    ip_list = request.form.get('ip_list')
     if not device_id:
         return 'Missing ID', 400
     conn = sqlite3.connect(DATABASE_PATH)
-    conn.execute('INSERT OR IGNORE INTO devices (id, last_seen) VALUES (?, ?)', (device_id, time.time()))
+    conn.execute('INSERT OR IGNORE INTO devices (id, last_seen, ip_list) VALUES (?, ?, ?)', (device_id, time.time(), ip_list))
     conn.commit()
     conn.close()
-    return 'Registered', 200
 
-@app.route('/data', methods=['POST'])
-def upload_data():
-    device_id = request.form.get('id')
-    if 'file' not in request.files:
-        return 'No file', 400
-    f = request.files['file']
-    content = io.StringIO(f.stream.read().decode("utf-8"))
-    reader = csv.reader(content)
-    conn = sqlite3.connect(DATABASE_PATH)
-    for row in reader:
-        conn.execute('INSERT INTO data (id, date, value) VALUES (?, ?, ?)', (device_id, row[0], row[1]))
-    conn.commit()
-    conn.close()
-    return 'Data received', 200
+    bot.send_message(admin_chat_id, f'На связь вышло устройство "{device_id}", его IP {ip_list}.')
+    return 'Registered', 200
 
 @app.route('/heartbeat', methods=['POST'])
 def heartbeat():
     device_id = request.form.get('id')
     temperature = request.form.get('temperature', type=float)
+    ip_list = request.form.get('ip_list')  # <-- добавлено
     timestamp = time.time()
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
-    cursor.execute('UPDATE devices SET last_seen = ? WHERE id = ?', (timestamp, device_id))
+    if ip_list:
+        cursor.execute('UPDATE devices SET last_seen = ?, ip_list = ? WHERE id = ?', (timestamp, ip_list, device_id))  # <-- изменено
+    else:
+        cursor.execute('UPDATE devices SET last_seen = ? WHERE id = ?', (timestamp, device_id))
     cursor.execute('INSERT INTO heartbeat (id, timestamp, temperature) VALUES (?, ?, ?)', (device_id, timestamp, temperature))
-    # Удаляем старые записи
     cursor.execute('''DELETE FROM heartbeat 
                       WHERE rowid NOT IN (
                           SELECT rowid FROM heartbeat WHERE id=? ORDER BY timestamp DESC LIMIT 1000
@@ -101,6 +101,21 @@ def heartbeat():
     conn.close()
     return jsonify({'id': command_id, 'command': command_text})
 
+@app.route('/data', methods=['POST'])
+def upload_data():
+    device_id = request.form.get('id')
+    if 'file' not in request.files:
+        return 'No file', 400
+    f = request.files['file']
+    content = io.StringIO(f.stream.read().decode("utf-8"))
+    reader = csv.reader(content)
+    conn = sqlite3.connect(DATABASE_PATH)
+    for row in reader:
+        conn.execute('INSERT INTO data (id, date, value) VALUES (?, ?, ?)', (device_id, row[0], row[1]))
+    conn.commit()
+    conn.close()
+    return 'Data received', 200
+
 @app.route('/command_result', methods=['POST'])
 def command_result():
     command_id = request.form.get('command_id')
@@ -111,6 +126,7 @@ def command_result():
     conn.close()
     notify_user(f'Команда {command_id} выполнена. Результат: {result}')
     return 'OK', 200
+
 
 # ============ Telegram BOT =================
 
@@ -126,9 +142,9 @@ def handle_help(msg):
     help_text = (
         "Доступные команды:\n"
         "/devices — список устройств и время последней связи\n"
-        "/status ID — статус устройства, график температуры\n"
+        "/status ID — когда устройство было на связи, температура, IP и сколько записей\n"
         "/del_device ID — удалить устройство и все его данные\n"
-        "/send_cmd ID команда — отправить команду устройству\n"
+        "/cmd ID команда — отправить команду устройству\n"
         "/del_cmd ID — удалить команду по ID\n"
         "/help — показать эту справку"
     )
@@ -142,6 +158,7 @@ def list_devices(msg):
     response = '\n'.join([f'{row[0]} — последний контакт: {time.ctime(row[1])}' for row in rows])
     bot.send_message(msg.chat.id, response or 'Нет устройств')
 
+
 @bot.message_handler(commands=['status'])
 def device_status(msg):
     try:
@@ -150,17 +167,19 @@ def device_status(msg):
         bot.send_message(msg.chat.id, 'Формат: /status ID')
         return
     conn = sqlite3.connect(DATABASE_PATH)
-    last_seen = conn.execute('SELECT last_seen FROM devices WHERE id=?', (device_id,)).fetchone()
+    info = conn.execute('SELECT last_seen, ip_list FROM devices WHERE id=?', (device_id,)).fetchone()  # <-- изменено
     data_count = conn.execute('SELECT COUNT(*) FROM data WHERE id=?', (device_id,)).fetchone()[0]
     latest_temp = conn.execute('SELECT temperature FROM heartbeat WHERE id=? ORDER BY timestamp DESC LIMIT 1', (device_id,)).fetchone()
     heartbeat_rows = conn.execute('SELECT timestamp, temperature FROM heartbeat WHERE id=? ORDER BY timestamp DESC LIMIT 1000', (device_id,)).fetchall()
     conn.close()
 
-    if not last_seen:
+    if not info:
         bot.send_message(msg.chat.id, 'Устройство не найдено')
         return
 
-    response = f"Последняя связь: {time.ctime(last_seen[0])}\n"
+    last_seen_ts, ip_list = info
+    response = f"Последняя связь: {format_time_ago(last_seen_ts)}\n"
+    response += f"IP адреса: {ip_list or 'неизвестно'}\n"
     response += f"Записей: {data_count}\n"
     response += f"Температура: {latest_temp[0] if latest_temp else 'нет данных'} °C"
     bot.send_message(msg.chat.id, response)
@@ -181,6 +200,7 @@ def device_status(msg):
         with open(img_path, 'rb') as f:
             bot.send_photo(msg.chat.id, f)
 
+
 @bot.message_handler(commands=['del_device'])
 def delete_device(msg):
     try:
@@ -197,7 +217,7 @@ def delete_device(msg):
     conn.close()
     bot.send_message(msg.chat.id, f'Устройство {device_id} удалено')
 
-@bot.message_handler(commands=['send_cmd'])
+@bot.message_handler(commands=['cmd'])
 def send_cmd(msg):
     try:
         _, device_id, *cmd_parts = msg.text.split()
