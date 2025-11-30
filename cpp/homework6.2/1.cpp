@@ -1,128 +1,114 @@
 #include <iostream>
-#include <utility>
 
 bool hasAllUniqueDigits(int number);
-int* removeElementsWithUniqueDigits(const int array[], size_t size, size_t& newSize);
+void removeElementsWithUniqueDigits(int*& array, size_t& size);
 void printArray(const int array[], size_t size);
 
-int main() 
+
+// Код изменен в соотвествии с замечанями:
+// bool hasAllUniqueDigits(int n) — исправлена логика однозначных чисел
+// void removeElementsWithUniqueDigits(int*& arr, size_t& size)
+// Эта функция заменяет массив "на месте" чтобы эффективнее 
+// применять динамические массивы
+
+int main()
 {
     size_t arraySize;
-    
     std::cout << "Enter array size: ";
     std::cin >> arraySize;
-    
-    if (arraySize == 0) 
-    {
-        std::cout << "Array size must be greater than 0" << std::endl;
-        return 1;
-    }
-    
-    int* originalArray = new int[arraySize];
-    
+
+    int* array = new int[arraySize];
+
     std::cout << "Enter array elements:" << std::endl;
-    for (size_t i = 0; i < arraySize; ++i) 
+    for (size_t i = 0; i < arraySize; ++i)
     {
         std::cout << "Element [" << i << "]: ";
-        std::cin >> originalArray[i];
+        std::cin >> array[i];
     }
-    
+
     std::cout << "\nOriginal array:" << std::endl;
-    printArray(originalArray, arraySize);
-    
-    size_t newSize;
-    int* resultArray = removeElementsWithUniqueDigits(originalArray, arraySize, newSize);
-    
+    printArray(array, arraySize);
+
+    removeElementsWithUniqueDigits(array, arraySize);
+
     std::cout << "\nArray after removing elements with all unique digits:" << std::endl;
-    if (newSize > 0) 
-    {
-        printArray(resultArray, newSize);
-    } 
-    else 
-    {
-        std::cout << "Array is empty" << std::endl;
-    }
-    
-    delete[] originalArray;
-    delete[] resultArray;
-    
+
+    if (arraySize > 0)
+        printArray(array, arraySize);
+    else
+        std::cout << "Array is empty\n";
+
+    delete[] array;
+
     return 0;
 }
 
-bool hasAllUniqueDigits(int number) 
+bool hasAllUniqueDigits(int number)
 {
-    if (number < 0) 
-    {
+    if (number < 0)
         number = -number;
-    }
-    
-    // Для однозначных чисел - цифры не могут быть не уникальными
-    if (number < 10) 
+
+    // Однозначное число — его единственная цифра уникальна
+    if (number < 10)
+        return true;
+
+    bool used[10] = {false};
+
+    while (number > 0)
     {
-        return false;
-    }
-    
-    bool digits[10] = {false};
-    
-    while (number > 0) 
-    {
-        int digit = number % 10;
-        
-        if (digits[digit]) 
-        {
-            return false; // Нашли повторяющуюся цифру
-        }
-        
-        digits[digit] = true;
+        int d = number % 10;
+        if (used[d])
+            return false;
+
+        used[d] = true;
         number /= 10;
     }
-    
-    return true; // Все цифры уникальны
+
+    return true;
 }
 
-int* removeElementsWithUniqueDigits(const int array[], size_t size, size_t& newSize) 
+void removeElementsWithUniqueDigits(int*& array, size_t& size)
 {
-    size_t countToKeep = 0;
-    
-    for (size_t i = 0; i < size; ++i) 
+    // Считаем количество элементов, которые нужно оставить
+    size_t keepCount = 0;
+    for (size_t i = 0; i < size; ++i)
     {
-        if (!hasAllUniqueDigits(array[i])) 
+        if (!hasAllUniqueDigits(array[i]))
+            ++keepCount;
+    }
+
+    // Нет элементов → освобождаем и обнуляем
+    if (keepCount == 0)
+    {
+        delete[] array;
+        array = nullptr;
+        size = 0;
+        return;
+    }
+
+    int* newArray = new int[keepCount];
+    size_t idx = 0;
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        if (!hasAllUniqueDigits(array[i]))
         {
-            ++countToKeep;
+            newArray[idx++] = array[i];
         }
     }
-    
-    newSize = countToKeep;
-    
-    if (newSize == 0) 
-    {
-        return nullptr;
-    }
-    
-    int* resultArray = new int[newSize];
-    size_t resultIndex = 0;
-    
-    for (size_t i = 0; i < size; ++i) 
-    {
-        if (!hasAllUniqueDigits(array[i])) 
-        {
-            resultArray[resultIndex] = array[i];
-            ++resultIndex;
-        }
-    }
-    
-    return resultArray;
+
+    delete[] array;      // освобождаем старую память
+    array = newArray;    // подменяем указатель
+    size = keepCount;    // обновляем размер
 }
 
-void printArray(const int array[], size_t size) 
+void printArray(const int array[], size_t size)
 {
-    for (size_t i = 0; i < size; ++i) 
+    for (size_t i = 0; i < size; ++i)
     {
         std::cout << array[i];
-        if (i < size - 1) 
-        {
+        if (i < size - 1)
             std::cout << " ";
-        }
     }
-    std::cout << std::endl;
+    std::cout << "\n";
 }

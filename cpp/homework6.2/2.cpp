@@ -1,19 +1,51 @@
 #include <iostream>
-#include <utility>
+#include <limits> // для std::numeric_limits
 
 bool isColumnAllPositive(const int** matrix, size_t rows, size_t col);
 int** removeAllPositiveColumns(const int** matrix, size_t rows, size_t cols, size_t& newCols);
 void printMatrix(const int** matrix, size_t rows, size_t cols);
 void deleteMatrix(int** matrix, size_t rows);
 
+// <<< EDIT: helper для создания матрицы вынесен (чтобы избежать дублирования) >>>
+int** createMatrix(size_t rows, size_t cols)
+{
+    // <<< EDIT: проверка на нулевые размеры >>>
+    if (rows == 0 || cols == 0) return nullptr;
+
+    int** m = nullptr;
+    try {
+        m = new int*[rows];
+        for (size_t i = 0; i < rows; ++i) {
+            m[i] = new int[cols];
+        }
+    } catch (const std::bad_alloc&) {
+        // <<< EDIT: в случае неудачи — чистим уже выделенное и возвращаем nullptr >>>
+        if (m) {
+            for (size_t i = 0; i < rows; ++i) {
+                // Если часть строк ещё не выделена, проверка нужна
+                if (m[i]) delete[] m[i];
+            }
+            delete[] m;
+        }
+        return nullptr;
+    }
+    return m;
+}
+
 int main() 
 {
-    size_t rows, cols;
+    size_t rows = 0, cols = 0;
     
     std::cout << "Enter number of rows: ";
-    std::cin >> rows;
+    if (!(std::cin >> rows)) { // <<< EDIT: проверка ввода >>>
+        std::cerr << "Invalid input for rows\n";
+        return 1;
+    }
     std::cout << "Enter number of columns: ";
-    std::cin >> cols;
+    if (!(std::cin >> cols)) { // <<< EDIT: проверка ввода >>>
+        std::cerr << "Invalid input for columns\n";
+        return 1;
+    }
     
     if (rows == 0 || cols == 0) 
     {
@@ -22,10 +54,10 @@ int main()
     }
     
     // Создаем матрицу
-    int** matrix = new int*[rows];
-    for (size_t i = 0; i < rows; ++i) 
-    {
-        matrix[i] = new int[cols];
+    int** matrix = createMatrix(rows, cols); // <<< EDIT: используем createMatrix >>>
+    if (matrix == nullptr) { // <<< EDIT: проверка успешности выделения >>>
+        std::cerr << "Memory allocation failed for matrix\n";
+        return 1;
     }
     
     std::cout << "Enter matrix elements:" << std::endl;
@@ -34,18 +66,23 @@ int main()
         for (size_t j = 0; j < cols; ++j) 
         {
             std::cout << "Element [" << i << "][" << j << "]: ";
-            std::cin >> matrix[i][j];
+            if (!(std::cin >> matrix[i][j])) { // <<< EDIT: проверка ввода элемента >>>
+                std::cerr << "Invalid input for element [" << i << "][" << j << "]\n";
+                // очищаем и выходим
+                deleteMatrix(matrix, rows);
+                return 1;
+            }
         }
     }
     
     std::cout << "\nOriginal matrix:" << std::endl;
     printMatrix(const_cast<const int**>(matrix), rows, cols);
     
-    size_t newCols;
+    size_t newCols = 0;
     int** resultMatrix = removeAllPositiveColumns(const_cast<const int**>(matrix), rows, cols, newCols);
     
     std::cout << "\nMatrix after removing columns with all positive elements:" << std::endl;
-    if (newCols > 0) 
+    if (newCols > 0 && resultMatrix != nullptr) 
     {
         printMatrix(const_cast<const int**>(resultMatrix), rows, newCols);
     } 
@@ -55,8 +92,12 @@ int main()
     }
     
     // Чистка памяти
+    // <<< EDIT: освобождаем старую матрицу всегда >>>
     deleteMatrix(matrix, rows);
-    if (resultMatrix != matrix) 
+
+    // <<< EDIT: если resultMatrix есть и это не тот же указатель, который уже удалён, удаляем >>>
+    // В нашей реализации resultMatrix никогда равен исходному matrix, но оставим проверку на всякий случай
+    if (resultMatrix != nullptr && resultMatrix != matrix) 
     {
         deleteMatrix(resultMatrix, rows);
     }
@@ -66,8 +107,15 @@ int main()
 
 bool isColumnAllPositive(const int** matrix, size_t rows, size_t col) 
 {
+    // <<< EDIT: защита от некорректных указателей и индекса столбца >>>
+    if (matrix == nullptr) return false; // если нет матрицы, считать, что столбец не "весь положительный"
+    // rows может быть 0 — тогда столбец не считается "весь положительный"
+    if (rows == 0) return false;
+
     for (size_t i = 0; i < rows; ++i) 
     {
+        // <<< EDIT: защита от некорректной строки >>>
+        if (matrix[i] == nullptr) return false;
         if (matrix[i][col] <= 0) 
         {
             return false;
@@ -78,43 +126,34 @@ bool isColumnAllPositive(const int** matrix, size_t rows, size_t col)
 
 int** removeAllPositiveColumns(const int** matrix, size_t rows, size_t cols, size_t& newCols) 
 {
+    newCols = 0;
+
+    // <<< EDIT: защита входных параметров >>>
+    if (matrix == nullptr || rows == 0 || cols == 0) 
+    {
+        return nullptr;
+    }
+
     // Сколько оставить колонок
-    size_t columnsToKeep = 0;
     for (size_t j = 0; j < cols; ++j) 
     {
         if (!isColumnAllPositive(matrix, rows, j)) 
         {
-            ++columnsToKeep;
+            ++newCols;
         }
     }
-    
-    newCols = columnsToKeep;
     
     if (newCols == 0) 
     {
         return nullptr;
     }
     
-    if (newCols == cols) 
-    {
-        // Ничего не надо удалять
-        int** result = new int*[rows];
-        for (size_t i = 0; i < rows; ++i) 
-        {
-            result[i] = new int[newCols];
-            for (size_t j = 0; j < newCols; ++j) 
-            {
-                result[i][j] = matrix[i][j];
-            }
-        }
-        return result;
-    }
-    
-    // Новая матрица у убранными колонками
-    int** resultMatrix = new int*[rows];
-    for (size_t i = 0; i < rows; ++i) 
-    {
-        resultMatrix[i] = new int[newCols];
+    // <<< EDIT: используем одну функцию создания матрицы вместо дублирования кода >>>
+    int** resultMatrix = createMatrix(rows, newCols);
+    if (resultMatrix == nullptr) { // <<< EDIT: проверка успешности выделения >>>
+        std::cerr << "Memory allocation failed for result matrix\n";
+        newCols = 0;
+        return nullptr;
     }
     
     // Копируем
@@ -124,6 +163,13 @@ int** removeAllPositiveColumns(const int** matrix, size_t rows, size_t cols, siz
         {
             for (size_t i = 0; i < rows; ++i) 
             {
+                // <<< EDIT: защита от nullptr строк источника >>>
+                if (matrix[i] == nullptr) {
+                    // аварийная ситуация — очищаем уже выделенное и возвращаем nullptr
+                    deleteMatrix(resultMatrix, rows);
+                    newCols = 0;
+                    return nullptr;
+                }
                 resultMatrix[i][resultJ] = matrix[i][j];
             }
             ++resultJ;
@@ -135,8 +181,20 @@ int** removeAllPositiveColumns(const int** matrix, size_t rows, size_t cols, siz
 
 void printMatrix(const int** matrix, size_t rows, size_t cols) 
 {
+    if (matrix == nullptr) {
+        std::cout << "(empty matrix)\n";
+        return;
+    }
+
     for (size_t i = 0; i < rows; ++i) 
     {
+        if (matrix[i] == nullptr) {
+            // защита: если какая-то строка отсутствует, выводим маркер
+            for (size_t j = 0; j < cols; ++j) std::cout << "?\t";
+            std::cout << std::endl;
+            continue;
+        }
+
         for (size_t j = 0; j < cols; ++j) 
         {
             std::cout << matrix[i][j] << "\t";
@@ -151,7 +209,8 @@ void deleteMatrix(int** matrix, size_t rows)
     
     for (size_t i = 0; i < rows; ++i) 
     {
-        delete[] matrix[i];
+        // <<< EDIT: защита от удаления незаполненной строки >>>
+        if (matrix[i] != nullptr) delete[] matrix[i];
     }
     delete[] matrix;
 }
