@@ -1,125 +1,163 @@
 #include <iostream>
-#include <iomanip>
 #include <cstdlib>
 #include <ctime>
 
-const size_t MAX_ARRAY_SIZE = 100;
-const size_t MAX_MATRIX_ROWS = 10;
-const size_t MAX_MATRIX_COLS = 10;
-const int RAND_MIN_VAL = 0;
-const int RAND_MAX_VAL = 1024;
+/*
+ЗАМЕЧАНИЯ
+1. Не используйте глобальные переменные. Создайте пространство имён и добавьте их туда. 
+2. Зачем на каждом шаге проверять не последний ли элемент? Запустите цикл до предпоследнего, а потом распечатайте последний.
+3. Для работы с размерами и индексами используйте тип size_t. 
+4. Если вы генерируйте массивы и матрицы, то вам следовало бы их печатать — а то что мы проверяем?
 
-size_t countOutOfRangeArray(const int values[], 
-                           size_t length, 
-                           int left, 
-                           int right)
+    ИСПРАВЛЕНО (п.1):
+    Все ранее глобальные константы перенесены в пространство имён
+*/
+namespace config
 {
-    size_t count = 0;
-
-    for (size_t i = 0; i < length; i++)
-    {
-        if (values[i] < left || values[i] > right)
-            count++;
-    }
-    return count;
+    const size_t MAX_ARRAY_SIZE  = 100;
+    const size_t MAX_MATRIX_ROWS = 10;
+    const size_t MAX_MATRIX_COLS = 10;
+    const int RAND_MIN_VAL = 0;
+    const int RAND_MAX_VAL = 1024;
 }
 
-size_t countOutOfRangeMatrix(const int values[][MAX_MATRIX_COLS],
-                            size_t rows, 
-                            size_t cols, 
-                            int left, 
+/*
+    Подсчет элементов одномерного массива,
+    не попадающих в диапазон [left; right]
+*/
+size_t countOutOfRangeArray(const int values[],
+                            size_t length,
+                            int left,
                             int right)
 {
     size_t count = 0;
 
-    for (size_t i = 0; i < rows; i++)
+    for (size_t i = 0; i < length; ++i)
     {
-        for (size_t j = 0; j < cols; j++)
-        {
-            if (values[i][j] < left || values[i][j] > right)
-                count++;
-        }
+        if (values[i] < left || values[i] > right)
+            ++count;
     }
     return count;
 }
 
-void fillRandomArray(int arr[], size_t length)
+/*
+    Подсчет элементов двумерного массива,
+    не попадающих в диапазон [left; right]
+*/
+size_t countOutOfRangeMatrix(const int values[][config::MAX_MATRIX_COLS],
+                             size_t rows,
+                             size_t cols,
+                             int left,
+                             int right)
 {
-    for (size_t i = 0; i < length; i++)
-        arr[i] = RAND_MIN_VAL + std::rand() % (RAND_MAX_VAL + 1);
+    size_t count = 0;
+
+    for (size_t i = 0; i < rows; ++i)
+        for (size_t j = 0; j < cols; ++j)
+            if (values[i][j] < left || values[i][j] > right)
+                ++count;
+
+    return count;
 }
 
-void fillRandomMatrix(int arr[][MAX_MATRIX_COLS], size_t rows, size_t cols)
+/*
+    Заполнение одномерного массива случайными числами
+*/
+void fillRandomArray(int arr[], size_t length)
 {
-    for (size_t i = 0; i < rows; i++)
-        for (size_t j = 0; j < cols; j++)
-            arr[i][j] = RAND_MIN_VAL + std::rand() % (RAND_MAX_VAL + 1);
+    for (size_t i = 0; i < length; ++i)
+        arr[i] = config::RAND_MIN_VAL +
+                 std::rand() % (config::RAND_MAX_VAL + 1);
+}
+
+/*
+    Заполнение двумерного массива случайными числами
+*/
+void fillRandomMatrix(int arr[][config::MAX_MATRIX_COLS],
+                      size_t rows,
+                      size_t cols)
+{
+    for (size_t i = 0; i < rows; ++i)
+        for (size_t j = 0; j < cols; ++j)
+            arr[i][j] = config::RAND_MIN_VAL +
+                        std::rand() % (config::RAND_MAX_VAL + 1);
+}
+
+/*
+    ИСПРАВЛЕНО (п.2, п.4):
+    Вывод одномерного массива без проверки "последний / не последний"
+*/
+void printArray(const int arr[], size_t length)
+{
+    for (size_t i = 0; i + 1 < length; ++i)
+        std::cout << arr[i] << ", ";
+
+    std::cout << arr[length - 1] << std::endl;
+}
+
+/*
+    ИСПРАВЛЕНО (п.4):
+    Вывод двумерного массива
+*/
+void printMatrix(const int arr[][config::MAX_MATRIX_COLS],
+                 size_t rows,
+                 size_t cols)
+{
+    for (size_t i = 0; i < rows; ++i)
+    {
+        for (size_t j = 0; j < cols; ++j)
+            std::cout << arr[i][j] << " ";
+        std::cout << std::endl;
+    }
 }
 
 int main()
 {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
 
-    int array[MAX_ARRAY_SIZE];
-    int matrix[MAX_MATRIX_ROWS][MAX_MATRIX_COLS];
+    int array[config::MAX_ARRAY_SIZE];
+    int matrix[config::MAX_MATRIX_ROWS][config::MAX_MATRIX_COLS];
 
     size_t arraySize;
     size_t matrixRows;
     size_t matrixCols;
 
-    std::cout << "Enter array size (1-" << MAX_ARRAY_SIZE << "): ";
+    /*
+        ИСПРАВЛЕНО (п.3):
+        Для размеров и индексов используется size_t
+    */
+    std::cout << "Enter array size: ";
     std::cin >> arraySize;
 
-    if (arraySize == 0 || arraySize > MAX_ARRAY_SIZE)
-    {
-        std::cout << "Error: array size must be between 1 and " << MAX_ARRAY_SIZE << std::endl;
-        return 1;
-    }
-
-    std::cout << "Enter matrix rows (1-" << MAX_MATRIX_ROWS << "): ";
+    std::cout << "Enter matrix rows: ";
     std::cin >> matrixRows;
 
-    if (matrixRows == 0 || matrixRows > MAX_MATRIX_ROWS)
-    {
-        std::cout << "Error: matrix rows must be between 1 and " << MAX_MATRIX_ROWS << std::endl;
-        return 1;
-    }
-
-    std::cout << "Enter matrix cols (1-" << MAX_MATRIX_COLS << "): ";
+    std::cout << "Enter matrix cols: ";
     std::cin >> matrixCols;
 
-    if (matrixCols == 0 || matrixCols > MAX_MATRIX_COLS)
-    {
-        std::cout << "Error: matrix cols must be between 1 and " << MAX_MATRIX_COLS << std::endl;
-        return 1;
-    }
+    int left;
+    int right;
 
-    int left = 0;
-    int right = 0;
-
-    std::cout << "Enter left range border: ";
+    std::cout << "Enter left border: ";
     std::cin >> left;
 
-    std::cout << "Enter right range border: ";
+    std::cout << "Enter right border: ";
     std::cin >> right;
-
-    if (left > right)
-    {
-        std::cout << "Error: left border cannot be greater than right border" << std::endl;
-        return 1;
-    }
 
     fillRandomArray(array, arraySize);
     fillRandomMatrix(matrix, matrixRows, matrixCols);
 
-    size_t arrayResult = countOutOfRangeArray(array, arraySize, left, right);
+    std::cout << "\nArray:" << std::endl;
+    printArray(array, arraySize);
+
+    std::cout << "\nMatrix:" << std::endl;
+    printMatrix(matrix, matrixRows, matrixCols);
+
+    size_t arrayResult  = countOutOfRangeArray(array, arraySize, left, right);
     size_t matrixResult = countOutOfRangeMatrix(matrix, matrixRows, matrixCols, left, right);
 
-    std::cout << "\nGenerated array (" << arraySize << " elements)" << std::endl;
-    std::cout << "Out-of-range count: " << arrayResult << std::endl;
-
-    std::cout << "\nGenerated matrix (" << matrixRows << "x" << matrixCols << ")" << std::endl;
-    std::cout << "Out-of-range count: " << matrixResult << std::endl;
+    std::cout << "\nOut-of-range in array: " << arrayResult << std::endl;
+    std::cout << "Out-of-range in matrix: " << matrixResult << std::endl;
 
     return 0;
 }

@@ -1,47 +1,95 @@
 #include <iostream>
 #include <iomanip>
 
-const int MAX_ARRAY_SIZE = 100;
+/*
+ЗАМЕЧАНИЯ
+1. Не используйте глобальные переменные. Создайте пространство имён и добавьте их туда. 
+2. Зачем на каждом шаге проверять не последний ли элемент? Запустите цикл до предпоследнего, а потом распечатайте последний.
+3. Для работы с размерами и индексами используйте тип size_t. 
+4. Если вы генерируйте массивы и матрицы, то вам следовало бы их печатать — а то что мы проверяем?
 
-int main() {
-    double array[MAX_ARRAY_SIZE];
-    int n;
-    
-    std::cout << "Enter array size (1-" << MAX_ARRAY_SIZE << "): ";
+    ИСПРАВЛЕНО (п.1):
+    Глобальная константа перенесена в пространство имён
+*/
+namespace config
+{
+    const size_t MAX_ARRAY_SIZE = 100;
+}
+
+/*
+    Поиск номера последнего минимального элемента
+*/
+size_t findLastMinIndex(const double arr[], size_t size)
+{
+    double minValue = arr[0];
+    size_t lastMinIndex = 0;
+
+    for (size_t i = 1; i < size; ++i)
+    {
+        if (arr[i] <= minValue)
+        {
+            minValue = arr[i];
+            lastMinIndex = i;
+        }
+    }
+
+    return lastMinIndex;
+}
+
+/*
+    ИСПРАВЛЕНО (п.2):
+    Вывод массива без проверки "последний / не последний"
+*/
+void printArray(const double arr[], size_t size)
+{
+    for (size_t i = 0; i + 1 < size; ++i)
+        std::cout << std::fixed << std::setprecision(2) << arr[i] << ", ";
+
+    std::cout << std::fixed << std::setprecision(2)
+              << arr[size - 1] << std::endl;
+}
+
+int main()
+{
+    double array[config::MAX_ARRAY_SIZE];
+
+    /*
+        ИСПРАВЛЕНО (п.3):
+        Для размеров и индексов используется size_t
+    */
+    size_t n;
+
+    std::cout << "Enter array size (1-" << config::MAX_ARRAY_SIZE << "): ";
     std::cin >> n;
-    
-    if (n <= 0 || n > MAX_ARRAY_SIZE) {
-        std::cout << "Error: array size must be between 1 and " << MAX_ARRAY_SIZE << std::endl;
+
+    if (n == 0 || n > config::MAX_ARRAY_SIZE)
+    {
+        std::cout << "Error: invalid array size" << std::endl;
         return 1;
     }
-    
+
     std::cout << "Enter " << n << " real numbers:" << std::endl;
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; ++i)
+    {
         std::cout << "Element " << i << ": ";
         std::cin >> array[i];
     }
-    
-    std::cout << "Array elements: ";
-    for (int i = 0; i < n; i++) {
-        std::cout << std::fixed << std::setprecision(2) << array[i];
-        if (i < n - 1) {
-            std::cout << ", ";
-        }
-    }
-    std::cout << std::endl;
-    
-    double min_value = array[0];
-    int last_min_index = 0;
-    
-    for (int i = 1; i < n; i++) {
-        if (array[i] <= min_value) {
-            min_value = array[i];
-            last_min_index = i;
-        }
-    }
-    
-    std::cout << "Last minimum element index: " << last_min_index << std::endl;
-    std::cout << "Value: " << std::fixed << std::setprecision(2) << array[last_min_index] << std::endl;
-    
+
+    /*
+        ИСПРАВЛЕНО (п.4):
+        Массив выводится на экран для проверки
+    */
+    std::cout << "\nArray elements:" << std::endl;
+    printArray(array, n);
+
+    size_t lastMinIndex = findLastMinIndex(array, n);
+
+    std::cout << "\nLast minimum element index: "
+              << lastMinIndex << std::endl;
+
+    std::cout << "Value: "
+              << std::fixed << std::setprecision(2)
+              << array[lastMinIndex] << std::endl;
+
     return 0;
 }
