@@ -1,93 +1,59 @@
 #include <iostream>
-#include <cstring>
+#include <string>
 #include <cctype>
 
-// Проверяет, есть ли в слове заглавная буква
-bool hasUpperCase(const char* word) {
-    for (int i = 0; word[i] != '\0'; i++) {
-        if (std::isupper(static_cast<unsigned char>(word[i]))) {
-            return true;
-        }
-    }
-    return false;
+/*
+    ИСПРАВЛЕНО:
+    Используется std::string вместо char*
+*/
+
+
+bool startsWithUpperCase(const std::string& word)
+{
+    if (word.empty())
+        return false;
+
+    return std::isupper(static_cast<unsigned char>(word[0]));
 }
 
-int main() {
-    char input[2048];
+int main()
+{
+    std::string input;
 
     std::cout << "Enter text: ";
-    std::cin.getline(input, 2048);
+    std::getline(std::cin, input);
 
-    // Двумерный динамический массив слов
-    char** words = nullptr;
-    int wordCount = 0;
+    std::string result;
+    size_t i = 0;
+    size_t length = input.length();
 
-    int len = strlen(input);
-    int i = 0;
+    while (i < length)
+    {
+        // Пропуск пробелов
+        while (i < length && std::isspace(static_cast<unsigned char>(input[i])))
+            ++i;
 
-    // Парсим строку вручную
-    while (i < len) {
+        if (i >= length)
+            break;
 
-        // Пропускаем разделители
-        while (i < len && std::isspace(static_cast<unsigned char>(input[i]))) {
-            i++;
-        }
-        if (i >= len) break;
+        size_t start = i;
 
-        // Начало слова
-        int start = i;
+        // Поиск конца слова
+        while (i < length && !std::isspace(static_cast<unsigned char>(input[i])))
+            ++i;
 
-        // Ищем конец слова
-        while (i < len && !std::isspace(static_cast<unsigned char>(input[i]))) {
-            i++;
-        }
+        size_t wordLength = i - start;
+        std::string word = input.substr(start, wordLength);
 
-        int end = i;
-        int wordLen = end - start;
-
-        // Копируем слово во временный буфер
-        char* word = new char[wordLen + 1];
-        std::memcpy(word, &input[start], wordLen);
-        word[wordLen] = '\0';
-
-        // Проверяем слово
-        if (!hasUpperCase(word)) {
-
-            
-            char** newWords = new char*[wordCount + 1];
-
-            for (int j = 0; j < wordCount; j++) {
-                newWords[j] = words[j];
-            }
-
-            newWords[wordCount] = word;
-
-            delete[] words;
-            words = newWords;
-            wordCount++;
-
-        } else {
-            // Слово не подходит — удаляем буфер
-            delete[] word;
+        if (!startsWithUpperCase(word))
+        {
+            if (!result.empty())
+                result += " ";
+            result += word;
         }
     }
 
-    // Склеиваем результат в вывод
-    std::cout << "Result: ";
-
-    for (int j = 0; j < wordCount; j++) {
-        std::cout << words[j];
-        if (j < wordCount - 1)
-            std::cout << " ";
-    }
-
-    std::cout << std::endl;
-
-    // Освобождаем память
-    for (int j = 0; j < wordCount; j++) {
-        delete[] words[j];
-    }
-    delete[] words;
+    std::cout << "Result: " << result << std::endl;
 
     return 0;
 }

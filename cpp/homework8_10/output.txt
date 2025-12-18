@@ -1,0 +1,14 @@
+Employees with low salary
+
+Name: Petrov_Petr_Petrovich
+Position: manager
+Hire year: 2010
+Experience: 15 years
+Salary: 800
+
+Name: Sidorov_Sidr_Sidrovich
+Position: tester
+Hire year: 2020
+Experience: 5 years
+Salary: 600
+

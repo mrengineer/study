@@ -1,0 +1,3 @@
+Ivanov_Ivan_Ivanovich 2015 engineer 1200
+Petrov_Petr_Petrovich 2010 manager 800
+Sidorov_Sidr_Sidrovich 2020 tester 600
