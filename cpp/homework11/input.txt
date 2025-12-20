@@ -1,0 +1,5 @@
+101
+Ivanov Ivan Ivanovich 2001 5 4 4 5 3
+Petrov Petr Petrovich 2000 4 4 5 5 4
+Sidorov Sergey Sergeevich 2001 3 4 4 4 5
+Ivanov Alexey Ivanovich 1999 5 5 5 5 5
